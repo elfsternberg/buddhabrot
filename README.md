@@ -4,13 +4,15 @@
 ![Topic: Study](https://img.shields.io/badge/topic-Study-red)
 ![Topic: Graphics](https://img.shields.io/badge/topic-Graphics-red)
 
-![Buddhabrot](https://github.com/elfsternberg/buddhabrot/raw/master/buddha.jpg)
-
 The Buddhabrot is a relative of the Mandelbrot image.  In O'Reilly's
 [*Programming Rust*](http://shop.oreilly.com/product/0636920040385.do),
 the exercise calls for writing a Mandelbrot generator but as with
 everything it's not enough to just type in the text from the book, to
 understand it I have to make something new out of it.
+
+<img
+src="https://github.com/elfsternberg/buddhabrot/raw/master/buddha.jpg"
+style="max-width: 351px" />
 
 ## Buddhabrot Math
 
