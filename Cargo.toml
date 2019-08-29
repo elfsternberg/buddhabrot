@@ -1,0 +1,12 @@
+[package]
+name = "buddhabrot"
+version = "0.1.0"
+authors = ["elf"]
+
+[dependencies]
+failure = "0.1.1"
+failure_derive = "0.1.1"
+num = '0.2.0'
+image = '0.19.0'
+crossbeam = '0.2.8'
+num_cpus = '1.0.0'
