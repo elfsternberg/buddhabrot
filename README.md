@@ -1,9 +1,9 @@
 # Buddhabrot
-![Language: Rust](https://img.shields.io/badge/language-Rust-green.svg)
+![Language: Rust](https://img.shields.io/badge/topic-Rust-green.svg)
 ![Topic: Study](https://img.shields.io/badge/topic-Study-red.svg)
 ![Topic: Graphics](https://img.shields.io/badge/topic-Graphics-red.svg)
 
-![Buddhabrot](https://github.com/elfsternberg/programming_rust/raw/master/buddhabrot/buddha.jpg)
+![Buddhabrot](./buddhabrot/buddha.jpg)
 
 The Buddhabrot is a relative of the Mandelbrot image.  In O'Reilly's
 [*Programming Rust*](http://shop.oreilly.com/product/0636920040385.do),
