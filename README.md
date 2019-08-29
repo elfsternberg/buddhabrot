@@ -1,5 +1,6 @@
 # Buddhabrot
-![Language: Rust](https://img.shields.io/badge/topic-Rust-green.svg)
+
+![Language: Rust](https://img.shields.io/badge/language-Rust-green.svg)
 ![Topic: Study](https://img.shields.io/badge/topic-Study-red.svg)
 ![Topic: Graphics](https://img.shields.io/badge/topic-Graphics-red.svg)
 
