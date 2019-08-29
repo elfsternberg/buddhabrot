@@ -4,7 +4,7 @@
 ![Topic: Study](https://img.shields.io/badge/topic-Study-red)
 ![Topic: Graphics](https://img.shields.io/badge/topic-Graphics-red)
 
-![Buddhabrot](./buddha.jpg)
+![Buddhabrot](https://github.com/elfsternberg/buddhabrot/raw/master/buddha.jpg)
 
 The Buddhabrot is a relative of the Mandelbrot image.  In O'Reilly's
 [*Programming Rust*](http://shop.oreilly.com/product/0636920040385.do),
