@@ -2,11 +2,26 @@
 name = "buddhabrot"
 version = "0.1.0"
 authors = ["elf"]
+license = "MPL-2.0+"
+description = "Buddhabrot generator"
+repository = "https://github.com/elfsternberg/buddhabrot"
+readme = "./README.md"
 
 [dependencies]
+itertools = "0.8.0"
+clap = "2.33.0"
+crossbeam = "0.7.2"
+num_cpus = "1.10.1"
 failure = "0.1.1"
-failure_derive = "0.1.1"
 num = '0.2.0'
-image = '0.19.0'
-crossbeam = '0.2.8'
-num_cpus = '1.0.0'
+image = '0.22.1'
+
+[dev-dependencies]
+tempfile = "3.0.7"
+criterion = "0.2"
+assert_cmd = "0.11.0"
+predicates = "1.0.0"
+
+[lib]
+name = "buddhabrot"
+path = "src/lib.rs"

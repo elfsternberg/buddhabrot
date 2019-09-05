@@ -62,12 +62,6 @@ the entire board.
 That said, it's a pretty good implementation.  It does what I want it to
 do, and it's not *too* slow.
 
-## TODO
-
-- Look into the [`faster`](https://github.com/AdamNiederer/faster) crate
-- Use [`clap`](https://github.com/clap-rs/clap/) crate for command line
-  parsing
-  
 ## LICENSE 
 
 The Rust code here is a slam between the Buddhabrot algorithm and what's
