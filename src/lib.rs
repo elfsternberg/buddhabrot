@@ -23,12 +23,16 @@
 
 extern crate crossbeam;
 extern crate image;
+extern crate itertools;
 extern crate num;
 extern crate num_cpus;
-extern crate itertools;
 
-use num::{clamp, Complex};
+use crossbeam::thread::ScopedJoinHandle;
+use itertools::iproduct;
+use num::Complex;
 use std::ops::{Index, IndexMut};
+use std::sync::{Arc, Mutex};
+use std::ops::Range;
 
 /// A plane is an array with methods that map a coordinate pair to a
 /// location on the array.  The array is left exposed so that we can
@@ -188,7 +192,6 @@ fn plot(start: Complex<f64>, buffer: &mut [u32], plane: &PlaneMapper, limit: usi
     }
 }
 
-// The main function: Given a buffer and a plane, map the buddhabrot set.
 fn render(
     buffer: &mut [u32],
     plane: &PlaneMapper,
@@ -215,6 +218,14 @@ fn render(
     Ok(())
 }
 
+/// The main function, single-threaded: Given a buffer and a plane, map the buddhabrot set.
+pub fn buddhabrot(plane: &PlaneMapper, limit: usize) -> Result<Vec<u32>, String> {
+    let mut buffer = vec![0 as u32; plane.len()];
+    render(&mut buffer, plane, (0, plane.plane.0), limit).unwrap();
+    Ok(buffer)
+}
+
+
 fn render_merge(regions: &[u32], plane_size: usize) -> Vec<u32> {
     let mut ret = vec![0 as u32; plane_size];
     let regions: Vec<&[u32]> = regions.chunks(plane_size).collect();
@@ -226,13 +237,9 @@ fn render_merge(regions: &[u32], plane_size: usize) -> Vec<u32> {
     ret
 }
 
-/// A single-threaded version of the buddhabrot renderer
-pub fn buddhabrot(plane: &PlaneMapper, limit: usize) -> Result<Vec<u32>, String> {
-    let mut buffer = vec![0 as u32; plane.len()];
-    render(&mut buffer, plane, (0, plane.plane.0), limit).unwrap();
-    Ok(buffer)
-}
+type PixelType = Arc<Mutex<itertools::Product<Range<usize>, Range<usize>>>>;
 
+/// A single-threaded version of the buddhabrot renderer
 /// A multi-threaded version of the render function that takes a thread count
 /// as an option.
 pub fn buddhabrot_threaded(
@@ -240,26 +247,36 @@ pub fn buddhabrot_threaded(
     limit: usize,
     threads: usize,
 ) -> Result<Vec<u32>, String> {
-    let mut regions = vec![0 as u32; plane.len() * threads];
-
-    let zones: Vec<(usize, usize)> = {
-        let zone_interval = plane.plane.0 / threads + (plane.plane.0 % threads);
-        (0..threads).map(|i| ((zone_interval * i), clamp(zone_interval * (i + 1), 0, plane.plane.0))).collect()
-    };
-
-    {
-        let regions: Vec<&mut [u32]> = regions.chunks_mut(plane.len()).collect();
-        crossbeam::scope(|spawner| {
-            for (zone, region) in itertools::zip(zones, regions) {
+    let mut allocation = vec![0 as u32; plane.len() * threads];
+    crossbeam::scope(|spawner| {
+        let regions: Vec<&mut [u32]> = allocation.chunks_mut(plane.len()).collect();
+        {
+            let pixels: PixelType = Arc::new(Mutex::new(iproduct!(0..plane.plane.0, 0..plane.plane.1).into_iter()));
+            for region in regions {
+                let pixels = pixels.clone();
                 spawner.spawn(move |_| {
-                    render(region, plane, zone, limit).unwrap();
+                    loop {
+                        let pixel = { pixels.lock().unwrap().next().clone() };
+                        match pixel {
+                            Some(pixel) => {
+                                let mut z: Complex<f64> = Complex { re: 0.0, im: 0.0 };
+                                let point = plane.pixel_to_point(&Pixel(pixel.0, pixel.1));
+                                for i in 0..limit {
+                                    z = z * z + point;
+                                    if z.norm_sqr() >= 4.0 {
+                                        plot(point, region, plane, i);
+                                        break;
+                                    }
+                                }
+                            },
+                            None => { break ; }
+                        }
+                    }
                 });
             }
-        })
-        .unwrap();
-    }
-
-    Ok(render_merge(&regions, plane.len()))
+        }
+    }).unwrap();
+    Ok(render_merge(&allocation, plane.len()))
 }
 
 #[cfg(test)]
