@@ -64,6 +64,7 @@ const LEFTLOWER: &str = "leftlower";
 const RIGHTUPPER: &str = "rightupper";
 const THREADS: &str = "threads";
 const ITERATIONS: &str = "iterations";
+const MAXTHREADS: &str = "maxthreads";
 
 fn args<'a>() -> ArgMatches<'a> {
     let max_threads = num_cpus::get();
@@ -129,6 +130,15 @@ fn args<'a>() -> ArgMatches<'a> {
                 .help("Number of threads to use in solver"),
         )
         .arg(
+            Arg::with_name(MAXTHREADS)
+                .required(false)
+                .long(MAXTHREADS)
+                .short("m")
+                .takes_value(false)
+                .required(false)
+                .help("Maxthreads: use all available cores.")
+        )
+        .arg(
             Arg::with_name(ITERATIONS)
                 .required(false)
                 .long(ITERATIONS)
@@ -168,8 +178,11 @@ fn main() {
         .expect("Error parsing right lower point");
     let image_size = buddhabrot::Region(image_size.0, image_size.1);
     let plane = buddhabrot::PlaneMapper::new(image_size, leftlower, rightupper).unwrap();
-    let threads =
-        usize::from_str(matches.value_of(THREADS).unwrap()).expect("Could not parse thread count.");
+    let threads = if matches.is_present(MAXTHREADS) {
+        num_cpus::get()
+    } else {
+        usize::from_str(matches.value_of(THREADS).unwrap()).expect("Could not parse thread count.")
+    };
     let iterations = usize::from_str(matches.value_of(ITERATIONS).unwrap())
         .expect("Could not parse thread count.");
 
