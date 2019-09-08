@@ -3,6 +3,8 @@ extern crate image;
 extern crate num;
 extern crate num_cpus;
 
+extern crate buddhabrot;
+use buddhabrot::NaiveRenderer;
 use clap::{App, Arg, ArgMatches};
 use image::pnm::PNMEncoder;
 use image::pnm::{PNMSubtype, SampleEncoding};
@@ -136,7 +138,7 @@ fn args<'a>() -> ArgMatches<'a> {
                 .short("m")
                 .takes_value(false)
                 .required(false)
-                .help("Maxthreads: use all available cores.")
+                .help("Maxthreads: use all available cores."),
         )
         .arg(
             Arg::with_name(ITERATIONS)
@@ -176,17 +178,24 @@ fn main() {
         .expect("Error parsing left upper point");
     let rightupper = parse_complex(matches.value_of(RIGHTUPPER).unwrap())
         .expect("Error parsing right lower point");
-    let image_size = buddhabrot::Region(image_size.0, image_size.1);
-    let plane = buddhabrot::PlaneMapper::new(image_size, leftlower, rightupper).unwrap();
+    let iterations = usize::from_str(matches.value_of(ITERATIONS).unwrap())
+        .expect("Could not parse iteration_count.");
     let threads = if matches.is_present(MAXTHREADS) {
         num_cpus::get()
     } else {
         usize::from_str(matches.value_of(THREADS).unwrap()).expect("Could not parse thread count.")
     };
-    let iterations = usize::from_str(matches.value_of(ITERATIONS).unwrap())
-        .expect("Could not parse thread count.");
 
-    match buddhabrot::buddhabrot_threaded(&plane, iterations, threads) {
+    let buddha = NaiveRenderer::new(
+        image_size.0,
+        image_size.1,
+        leftlower,
+        rightupper,
+        iterations,
+    )
+    .expect("Initialization error");
+
+    match buddha.buddhabrot(threads) {
         Err(e) => {
             eprintln!("Render failure: {}", e);
             std::process::exit(1);
