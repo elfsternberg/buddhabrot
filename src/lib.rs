@@ -26,6 +26,9 @@ extern crate image;
 extern crate itertools;
 extern crate num;
 extern crate num_cpus;
+extern crate rand;
 
 pub mod naive;
+pub mod lispy;
 pub use naive::NaiveRenderer;
+pub use lispy::CupeRenderer;

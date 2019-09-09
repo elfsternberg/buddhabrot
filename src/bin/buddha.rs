@@ -5,6 +5,7 @@ extern crate num_cpus;
 
 extern crate buddhabrot;
 use buddhabrot::NaiveRenderer;
+use buddhabrot::CupeRenderer;
 use clap::{App, Arg, ArgMatches};
 use image::pnm::PNMEncoder;
 use image::pnm::{PNMSubtype, SampleEncoding};
@@ -186,12 +187,11 @@ fn main() {
         usize::from_str(matches.value_of(THREADS).unwrap()).expect("Could not parse thread count.")
     };
 
-    let buddha = NaiveRenderer::new(
+    let mut buddha = CupeRenderer::new(
         image_size.0,
         image_size.1,
         leftlower,
         rightupper,
-        iterations,
     )
     .expect("Initialization error");
 
