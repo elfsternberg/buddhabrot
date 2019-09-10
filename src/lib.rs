@@ -28,7 +28,7 @@ extern crate num;
 extern crate num_cpus;
 extern crate rand;
 
-pub mod naive;
 pub mod lispy;
+pub mod naive;
+pub use lispy::{cupe_buddhabrot, CupeRenderer};
 pub use naive::NaiveRenderer;
-pub use lispy::CupeRenderer;

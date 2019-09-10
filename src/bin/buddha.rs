@@ -5,7 +5,7 @@ extern crate num_cpus;
 
 extern crate buddhabrot;
 use buddhabrot::NaiveRenderer;
-use buddhabrot::CupeRenderer;
+use buddhabrot::{cupe_buddhabrot, CupeRenderer};
 use clap::{App, Arg, ArgMatches};
 use image::pnm::PNMEncoder;
 use image::pnm::{PNMSubtype, SampleEncoding};
@@ -187,15 +187,10 @@ fn main() {
         usize::from_str(matches.value_of(THREADS).unwrap()).expect("Could not parse thread count.")
     };
 
-    let mut buddha = CupeRenderer::new(
-        image_size.0,
-        image_size.1,
-        leftlower,
-        rightupper,
-    )
-    .expect("Initialization error");
+    let buddha = CupeRenderer::new(image_size.0, image_size.1, leftlower, rightupper)
+        .expect("Initialization error");
 
-    match buddha.buddhabrot(threads) {
+    match cupe_buddhabrot(&buddha, threads) {
         Err(e) => {
             eprintln!("Render failure: {}", e);
             std::process::exit(1);
