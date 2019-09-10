@@ -196,13 +196,18 @@ fn main() {
             std::process::exit(1);
         }
         Ok(raw) => {
+            println!("{:?}", raw);
             let maxi = *raw.iter().max().unwrap();
-            let bias = (0.045 * (maxi as f32)) as u32;
+            let bbias = (0.045 * (maxi as f32)) as f64;
+            let tbias = (maxi as f64) - bbias;
+            let m = 256.0 / ((tbias - bbias) as f64);
+            println!("M: {}", m);
+            
             let nraw: Vec<u8> = raw
                 .iter()
-                .map(|mut s| {
-                    s = if *s < bias { &0 } else { s };
-                    clamp((s * 256) / maxi, 0, 255) as u8
+                .map(|s| {
+                    let c = ((*s as f64) * m - bbias) as u32;
+                    clamp(c, 0, 255) as u8
                 })
                 .collect();
             write_image(

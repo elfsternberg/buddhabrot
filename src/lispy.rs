@@ -11,7 +11,7 @@ use num::complex::Complex;
 use rand::prelude::*;
 use std::sync::{Arc, Mutex};
 
-macro_rules! tern {
+macro_rules! t {
     ($condition: expr, $_true: expr, $_false: expr) => {
         if $condition {
             $_true
@@ -30,33 +30,27 @@ fn make_regions(
     rightupper: Complex<f64>,
     resolution: usize,
 ) -> Vec<(Complex<f64>, Complex<f64>)> {
+    let mut regions: Vec<(Complex<f64>, Complex<f64>)> = vec![];
+
     let ct = (resolution as f64).sqrt();
     let dre = (rightupper.re - leftlower.re) / ct;
     let dim = (rightupper.im - leftlower.im) / ct;
 
-    let mut regions: Vec<(Complex<f64>, Complex<f64>)> = vec![];
     let mut re = leftlower.re;
-    loop {
+    while re < rightupper.re {
         let mut im = leftlower.im;
-        loop {
-            let nre = re + dre;
-            let nim = im + dim;
+        while im < rightupper.re {
+            let (nre, nim) = (re + dre, im + dim);
             regions.push((
                 Complex::new(re, im),
                 Complex::new(
-                    tern!(nre > rightupper.re, rightupper.re, nre),
-                    tern!(nim > rightupper.im, rightupper.im, nim),
+                    t!(nre > rightupper.re, rightupper.re, nre),
+                    t!(nim > rightupper.im, rightupper.im, nim),
                 ),
             ));
             im = im + dim;
-            if im >= rightupper.im {
-                break;
-            }
         }
         re = re + dre;
-        if re >= rightupper.re {
-            break;
-        }
     }
     regions
 }
@@ -102,7 +96,7 @@ impl CupeRenderer {
         match PlaneMapper::new(width, height, leftlower, rightupper) {
             Ok(planes) => Ok(CupeRenderer {
                 min_iterations: 10_000,
-                max_iterations: 50_000,
+                max_iterations: 100_000,
                 min_plot_count: 500,
                 samples_per_cell: 200,
                 max_scan: 1000,
@@ -133,14 +127,12 @@ impl CupeRenderer {
 /// raster scan.)
 
 pub fn find_interesting_points(cupe: &CupeRenderer, threads: usize) -> Vec<Complex<f64>> {
-    let regions = Arc::new(Mutex::new(
-        make_regions(
-            cupe.planes.complex_plane.0,
-            cupe.planes.complex_plane.1,
-            400,
-        )
-        .into_iter(),
-    ));
+    let regions = make_regions(
+        cupe.planes.complex_plane.0,
+        cupe.planes.complex_plane.1,
+        400,
+    );
+    let regions = Arc::new(Mutex::new(regions.into_iter()));
 
     let mut points: Vec<Complex<f64>> = vec![];
     crossbeam::scope(|spawner| {
@@ -173,7 +165,6 @@ pub fn find_interesting_points(cupe: &CupeRenderer, threads: usize) -> Vec<Compl
             .collect()
     })
     .unwrap();
-
     points
 }
 
@@ -185,21 +176,15 @@ fn find_interesting_points_inside(
 ) -> Vec<Complex<f64>> {
     let mut points: Vec<Complex<f64>> = vec![];
     let mut re = leftlower.re;
-    loop {
+    while re < rightupper.re - cupe.cell_size {
         let mut im = leftlower.im;
-        loop {
+        while im < rightupper.im - cupe.cell_size {
             if let Some(point) = is_interesting_cell(cupe, Complex::new(re, im), rng) {
                 points.push(point);
             }
             im = im + cupe.cell_size;
-            if im >= rightupper.im {
-                break;
-            }
         }
         re = re + cupe.cell_size;
-        if re >= rightupper.re {
-            break;
-        }
     }
     points
 }
@@ -249,6 +234,9 @@ fn iterate_random_sample(
     }
 }
 
+const D4: f64 = 1.0 / 4.0;
+const D16: f64 = D4 / 4.0;
+
 /// As I understand it, the two halves of the `and` expression
 /// represent false if the point is guaranteed to be inside the
 /// mandelbrot set.  Is does *not* guarantee that a point will be
@@ -258,9 +246,9 @@ fn iterate_random_sample(
 /// constrains our problem set a little bit, and that's what we
 /// want.
 pub fn maybe_outside(point: Complex<f64>) -> bool {
-    let y = point.im.powi(2);
-    let q = y + (point.re - 0.25_f64).powi(2);
-    q * (q + point.re - 0.25_f64) > (y * 0.25_f64) && (point.re + 1.0_f64).powi(2) + y > 0.0625_f64
+    let y = point.im.powf(2.0);
+    let q = y + (point.re - D4).powf(2.0);
+    q * (q + point.re - D4) > (y * D4) && (point.re + 1.0_f64).powf(2.0) + y > D16
 }
 
 /// This is our classic iterator function, which either returns the
@@ -335,8 +323,8 @@ pub fn collect_samples(
 pub fn map_samples(
     cupe: &CupeRenderer,
     points: &[(Complex<f64>, usize)],
-) -> Result<Vec<u32>, String> {
-    let mut plane = vec![0 as u32; cupe.planes.len()];
+) -> Result<Vec<u16>, String> {
+    let mut plane = vec![0 as u16; cupe.planes.len()];
     for point in points {
         let mut z = Complex {
             re: 0.0_f64,
@@ -348,7 +336,9 @@ pub fn map_samples(
                 break;
             }
             if let Some(offset) = cupe.planes.point_to_offset(&z) {
-                plane[offset] += 1;
+                if plane[offset] < 65535 {
+                    plane[offset] += 1;
+                }
             }
         }
     }
@@ -356,8 +346,8 @@ pub fn map_samples(
 }
 
 /// The main function, and primary entry point.
-pub fn cupe_buddhabrot(cupe: &CupeRenderer, threads: usize) -> Result<Vec<u32>, String> {
-    let points = find_interesting_points(cupe, threads);
-    let valid_points = collect_samples(cupe, &points, threads);
+pub fn cupe_buddhabrot(cupe: &CupeRenderer, threads: usize) -> Result<Vec<u16>, String> {
+    let interesting_points = find_interesting_points(cupe, threads);
+    let valid_points = collect_samples(cupe, &interesting_points, threads);
     map_samples(cupe, &valid_points)
 }
