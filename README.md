@@ -14,6 +14,18 @@ understand it I have to make something new out of it.
 src="https://github.com/elfsternberg/buddhabrot/raw/master/buddha.jpg"
 style="max-width: 351px" />
 
+## Status
+
+This project is back-burnered until I have more time to address it.
+Right now it's in an unstable state; there's something about the math
+that's eluding me.  The Naive implementation doesn't generate enough
+points, so you get assymetrical artifacts.  The "Cupe" implementation
+has a very regular series of gaps appearing in the body of the image,
+and doesn't generate nearly enough points.  I don't know if the problem
+lies in the breaking up of the problem into threadable sets, or if it's
+just that f64 math isn't as reliable as I'd expected.  I doubt it's the
+latter.
+
 ## Buddhabrot Math
 
 The Buddhabrot answers the question, "What's really inside that massive
