@@ -6,9 +6,11 @@ extern crate num_cpus;
 extern crate buddhabrot;
 use buddhabrot::NaiveRenderer;
 use buddhabrot::{cupe_buddhabrot, CupeRenderer};
+use buddhabrot::lispy::find_interesting_points;
 use clap::{App, Arg, ArgMatches};
 use image::pnm::PNMEncoder;
 use image::pnm::{PNMSubtype, SampleEncoding};
+use image::png::PNGEncoder;
 use image::ColorType;
 use num::{clamp, Complex};
 use std::fs::File;
@@ -190,6 +192,20 @@ fn main() {
     let buddha = CupeRenderer::new(image_size.0, image_size.1, leftlower, rightupper)
         .expect("Initialization error");
 
+    let mut plane = vec![0 as u8; buddha.planes.len()];
+    let points = find_interesting_points(&buddha, 8);
+    for point in points {
+        if let Some(offset) = buddha.planes.point_to_offset(&point) {
+            plane[offset] = 127;
+        }
+    }
+
+    let path = Path::new(matches.value_of(OUTPUT).unwrap());
+    let output = File::create(&path).unwrap();
+    let mut encoder = PNGEncoder::new(output);
+    encoder.encode(&plane, image_size.0 as u32, image_size.1 as u32, ColorType::Gray(8)).unwrap();
+    
+/*
     match cupe_buddhabrot(&buddha, threads) {
         Err(e) => {
             eprintln!("Render failure: {}", e);
@@ -218,4 +234,5 @@ fn main() {
             .unwrap();
         }
     }
+*/
 }

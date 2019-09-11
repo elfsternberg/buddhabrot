@@ -6,8 +6,9 @@
 extern crate crossbeam;
 
 use crossbeam::thread::ScopedJoinHandle;
-use naive::PlaneMapper;
+use planes::PlaneMapper;
 use num::complex::Complex;
+use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -82,7 +83,7 @@ pub struct CupeRenderer {
     // The maximum number of iterations we should do for checking a single cell:
     max_scan: usize,
     // The two planes about which we care:
-    planes: PlaneMapper,
+    pub planes: PlaneMapper,
 }
 
 impl CupeRenderer {
@@ -100,13 +101,26 @@ impl CupeRenderer {
                 min_plot_count: 500,
                 samples_per_cell: 200,
                 max_scan: 1000,
-                cell_size: 0.005,
+                cell_size: 0.001,
                 planes,
             }),
             Err(u) => Err(u),
         }
     }
 }
+
+struct CellPoint(Uniform<f64>, ThreadRng);
+
+impl CellPoint {
+    pub fn new(max: f64) -> Self {
+        let u = Uniform::new_inclusive(0.0_f64, max);
+        CellPoint(u, rand::thread_rng())
+    }
+    pub fn get(&mut self) -> f64 {
+        self.0.sample(&mut self.1)
+    }
+}
+
 
 /// The nice thing about Buddhabrot is that, unlike the Mandelbrot
 /// set, there's a very finite universe in which you're allowed to
@@ -125,7 +139,6 @@ impl CupeRenderer {
 /// in a square .005 from every point.  (After doing so, we also
 /// increment to the next "cell" by that much in a fairly classic
 /// raster scan.)
-
 pub fn find_interesting_points(cupe: &CupeRenderer, threads: usize) -> Vec<Complex<f64>> {
     let regions = make_regions(
         cupe.planes.complex_plane.0,
@@ -141,7 +154,7 @@ pub fn find_interesting_points(cupe: &CupeRenderer, threads: usize) -> Vec<Compl
                 let regions = regions.clone();
                 let mut points: Vec<Complex<f64>> = vec![];
                 spawner.spawn(move |_| {
-                    let mut rng = rand::thread_rng();
+                    let mut rng = CellPoint::new(cupe.cell_size);
                     loop {
                         let region = { regions.lock().unwrap().next() };
                         match region {
@@ -172,14 +185,15 @@ fn find_interesting_points_inside(
     cupe: &CupeRenderer,
     leftlower: Complex<f64>,
     rightupper: Complex<f64>,
-    rng: &mut ThreadRng,
+    rng: &mut CellPoint,
 ) -> Vec<Complex<f64>> {
     let mut points: Vec<Complex<f64>> = vec![];
     let mut re = leftlower.re;
-    while re < rightupper.re - cupe.cell_size {
+    while re < rightupper.re {
         let mut im = leftlower.im;
-        while im < rightupper.im - cupe.cell_size {
-            if let Some(point) = is_interesting_cell(cupe, Complex::new(re, im), rng) {
+        while im < rightupper.im {
+            let point = Complex::new(re, im);
+            if is_interesting_cell(cupe, point, rng) {
                 points.push(point);
             }
             im = im + cupe.cell_size;
@@ -196,8 +210,8 @@ fn find_interesting_points_inside(
 fn is_interesting_cell(
     cupe: &CupeRenderer,
     point: Complex<f64>,
-    rng: &mut ThreadRng,
-) -> Option<Complex<f64>> {
+    rng: &mut CellPoint,
+) -> bool {
     let (mut seen_inside, mut seen_outside) = (false, false);
     for _ in 0..cupe.samples_per_cell {
         match iterate_random_sample(cupe, point, rng) {
@@ -209,10 +223,10 @@ fn is_interesting_cell(
             }
         };
         if seen_inside && seen_outside {
-            return Some(point);
+            return true
         }
     }
-    None
+    false
 }
 
 /// A helper function that finds a random point within a cell and if
@@ -221,11 +235,11 @@ fn is_interesting_cell(
 fn iterate_random_sample(
     cupe: &CupeRenderer,
     point: Complex<f64>,
-    rng: &mut ThreadRng,
+    rng: &mut CellPoint,
 ) -> Option<usize> {
     let c = Complex {
-        re: point.re + rng.gen_range(0.0_f64, cupe.cell_size),
-        im: point.im + rng.gen_range(0.0_f64, cupe.cell_size),
+        re: point.re + rng.get(),
+        im: point.im + rng.get(),
     };
     if maybe_outside(c) {
         iterate_sample(&c, cupe.max_scan)
@@ -286,14 +300,14 @@ pub fn collect_samples(
                 let points = points.clone();
                 spawner.spawn(move |_| {
                     let mut samples: Vec<(Complex<f64>, usize)> = vec![];
-                    let mut rng = rand::thread_rng();
+                    let mut rng = CellPoint::new(cell_size);
                     loop {
                         let point = { points.lock().unwrap().next() };
                         match point {
                             Some(point) => {
                                 let c = Complex {
-                                    re: point.re + rng.gen_range(0.0_f64, cell_size),
-                                    im: point.im + rng.gen_range(0.0_f64, cell_size),
+                                    re: point.re + rng.get(),
+                                    im: point.im + rng.get(),
                                 };
                                 if let Some(i) = iterate_sample(point, cupe.max_iterations) {
                                     samples.push((c, i));
