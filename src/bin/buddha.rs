@@ -4,13 +4,13 @@ extern crate num;
 extern crate num_cpus;
 
 extern crate buddhabrot;
+use buddhabrot::lispy::find_interesting_points;
 use buddhabrot::NaiveRenderer;
 use buddhabrot::{cupe_buddhabrot, CupeRenderer};
-use buddhabrot::lispy::find_interesting_points;
 use clap::{App, Arg, ArgMatches};
+use image::png::PNGEncoder;
 use image::pnm::PNMEncoder;
 use image::pnm::{PNMSubtype, SampleEncoding};
-use image::png::PNGEncoder;
 use image::ColorType;
 use num::{clamp, Complex};
 use std::fs::File;
@@ -192,38 +192,19 @@ fn main() {
     let buddha = CupeRenderer::new(image_size.0, image_size.1, leftlower, rightupper)
         .expect("Initialization error");
 
-    let mut plane = vec![0 as u8; buddha.planes.len()];
-    let points = find_interesting_points(&buddha, 8);
-    for point in points {
-        if let Some(offset) = buddha.planes.point_to_offset(&point) {
-            plane[offset] = 127;
-        }
-    }
-
-    let path = Path::new(matches.value_of(OUTPUT).unwrap());
-    let output = File::create(&path).unwrap();
-    let mut encoder = PNGEncoder::new(output);
-    encoder.encode(&plane, image_size.0 as u32, image_size.1 as u32, ColorType::Gray(8)).unwrap();
-    
-/*
     match cupe_buddhabrot(&buddha, threads) {
         Err(e) => {
             eprintln!("Render failure: {}", e);
             std::process::exit(1);
         }
         Ok(raw) => {
-            println!("{:?}", raw);
             let maxi = *raw.iter().max().unwrap();
-            let bbias = (0.045 * (maxi as f32)) as f64;
-            let tbias = (maxi as f64) - bbias;
-            let m = 256.0 / ((tbias - bbias) as f64);
-            println!("M: {}", m);
-            
+            let bias = (maxi as f64 * 0.045) as u16;
             let nraw: Vec<u8> = raw
                 .iter()
-                .map(|s| {
-                    let c = ((*s as f64) * m - bbias) as u32;
-                    clamp(c, 0, 255) as u8
+                .map(|mut s| {
+                    let s = if *s < bias { 0 } else { *s };
+                    clamp(s, 0, 255) as u8
                 })
                 .collect();
             write_image(
@@ -234,5 +215,4 @@ fn main() {
             .unwrap();
         }
     }
-*/
 }

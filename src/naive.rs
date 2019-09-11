@@ -31,7 +31,7 @@ use num::Complex;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
-use planes::{PlaneMapper, Pixel};
+use planes::{Pixel, PlaneMapper};
 
 type PixelType = Arc<Mutex<itertools::Product<Range<usize>, Range<usize>>>>;
 
@@ -155,4 +155,3 @@ impl NaiveRenderer {
         Ok(self.render_merge(&allocation))
     }
 }
-

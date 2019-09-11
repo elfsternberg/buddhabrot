@@ -6,10 +6,11 @@
 extern crate crossbeam;
 
 use crossbeam::thread::ScopedJoinHandle;
-use planes::PlaneMapper;
 use num::complex::Complex;
+use planes::PlaneMapper;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 macro_rules! t {
@@ -26,34 +27,43 @@ macro_rules! t {
 /// that we can break the region up into sub-regions, each of which
 /// can then be tested for "interesting cells."
 
-fn make_regions(
+struct Cells {
     leftlower: Complex<f64>,
     rightupper: Complex<f64>,
-    resolution: usize,
-) -> Vec<(Complex<f64>, Complex<f64>)> {
-    let mut regions: Vec<(Complex<f64>, Complex<f64>)> = vec![];
+    resolution: f64,
+    re: f64,
+    im: f64,
+}
 
-    let ct = (resolution as f64).sqrt();
-    let dre = (rightupper.re - leftlower.re) / ct;
-    let dim = (rightupper.im - leftlower.im) / ct;
-
-    let mut re = leftlower.re;
-    while re < rightupper.re {
-        let mut im = leftlower.im;
-        while im < rightupper.re {
-            let (nre, nim) = (re + dre, im + dim);
-            regions.push((
-                Complex::new(re, im),
-                Complex::new(
-                    t!(nre > rightupper.re, rightupper.re, nre),
-                    t!(nim > rightupper.im, rightupper.im, nim),
-                ),
-            ));
-            im = im + dim;
+impl Cells {
+    pub fn new(leftlower: Complex<f64>, rightupper: Complex<f64>, resolution: f64) -> Self {
+        Cells {
+            leftlower,
+            rightupper,
+            resolution,
+            re: leftlower.re,
+            im: leftlower.im,
         }
-        re = re + dre;
     }
-    regions
+}
+
+impl Iterator for Cells {
+    type Item = Complex<f64>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.im > self.rightupper.im {
+            self.re += self.resolution;
+            self.im = self.leftlower.im;
+        }
+
+        if self.re > self.rightupper.re {
+            return None;
+        }
+
+        let val = Complex::new(self.re, self.im);
+        self.im += self.resolution;
+        Some(val)
+    }
 }
 
 /// The CupeRenderer contains the parameters by which a buddhabrot is
@@ -101,7 +111,7 @@ impl CupeRenderer {
                 min_plot_count: 500,
                 samples_per_cell: 200,
                 max_scan: 1000,
-                cell_size: 0.001,
+                cell_size: 0.0005,
                 planes,
             }),
             Err(u) => Err(u),
@@ -113,14 +123,13 @@ struct CellPoint(Uniform<f64>, ThreadRng);
 
 impl CellPoint {
     pub fn new(max: f64) -> Self {
-        let u = Uniform::new_inclusive(0.0_f64, max);
+        let u = Uniform::new(0.0_f64, max);
         CellPoint(u, rand::thread_rng())
     }
     pub fn get(&mut self) -> f64 {
         self.0.sample(&mut self.1)
     }
 }
-
 
 /// The nice thing about Buddhabrot is that, unlike the Mandelbrot
 /// set, there's a very finite universe in which you're allowed to
@@ -140,27 +149,33 @@ impl CellPoint {
 /// increment to the next "cell" by that much in a fairly classic
 /// raster scan.)
 pub fn find_interesting_points(cupe: &CupeRenderer, threads: usize) -> Vec<Complex<f64>> {
-    let regions = make_regions(
+    let cells = Cells::new(
         cupe.planes.complex_plane.0,
         cupe.planes.complex_plane.1,
-        400,
+        cupe.cell_size,
     );
-    let regions = Arc::new(Mutex::new(regions.into_iter()));
+    let cells = Arc::new(Mutex::new(cells));
 
     let mut points: Vec<Complex<f64>> = vec![];
     crossbeam::scope(|spawner| {
         let handles: Vec<ScopedJoinHandle<Vec<Complex<f64>>>> = (0..threads)
             .map(|_i| {
-                let regions = regions.clone();
+                let cells = cells.clone();
                 let mut points: Vec<Complex<f64>> = vec![];
                 spawner.spawn(move |_| {
                     let mut rng = CellPoint::new(cupe.cell_size);
                     loop {
-                        let region = { regions.lock().unwrap().next() };
-                        match region {
-                            Some(region) => points.extend(find_interesting_points_inside(
-                                cupe, region.0, region.1, &mut rng,
-                            )),
+                        let cell = { cells.lock().unwrap().next() };
+                        match cell {
+                            Some(cell) => {
+                                let ur = Complex::new(
+                                    cell.re + cupe.cell_size,
+                                    cell.im + cupe.cell_size,
+                                );
+                                points.extend(find_interesting_points_inside(
+                                    cupe, cell, ur, &mut rng,
+                                ));
+                            }
                             None => {
                                 break;
                             }
@@ -207,11 +222,7 @@ fn find_interesting_points_inside(
 /// rectangle.  This function samples the cell a small number of
 /// times and tries to figure out if the cell really is
 /// "interesting."  If it is, return its coordinates.
-fn is_interesting_cell(
-    cupe: &CupeRenderer,
-    point: Complex<f64>,
-    rng: &mut CellPoint,
-) -> bool {
+fn is_interesting_cell(cupe: &CupeRenderer, point: Complex<f64>, rng: &mut CellPoint) -> bool {
     let (mut seen_inside, mut seen_outside) = (false, false);
     for _ in 0..cupe.samples_per_cell {
         match iterate_random_sample(cupe, point, rng) {
@@ -223,7 +234,7 @@ fn is_interesting_cell(
             }
         };
         if seen_inside && seen_outside {
-            return true
+            return true;
         }
     }
     false
@@ -323,10 +334,12 @@ pub fn collect_samples(
             })
             .collect();
 
+        let min_iterations = cupe.min_iterations;
         samples = handles
             .into_iter()
             .map(|handle| handle.join().unwrap())
             .flatten()
+            .filter(|s| s.1 >= min_iterations)
             .collect()
     })
     .unwrap();
@@ -344,10 +357,13 @@ pub fn map_samples(
             re: 0.0_f64,
             im: 0.0_f64,
         };
-        for _i in 0..cupe.max_iterations {
+        for i in 0..point.1 {
             z = z * z + point.0;
             if z.norm_sqr() >= 4.0_f64 {
                 break;
+            }
+            if i < cupe.min_plot_count {
+                continue;
             }
             if let Some(offset) = cupe.planes.point_to_offset(&z) {
                 if plane[offset] < 65535 {

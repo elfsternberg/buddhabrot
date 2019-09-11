@@ -5,7 +5,6 @@
 //! plane.
 use num::Complex;
 
-
 /// Describes the width and height of an integral plane that is assumed to start at
 /// 0,0 and all values are assumed to be non-negative integers.  For that reason,
 /// the lower-left-hand corner is not included.  
@@ -135,7 +134,7 @@ impl PlaneMapper where {
         {
             return None;
         }
-        Some((top.round() as usize) * self.integral_plane.0 + (left.round() as usize))
+        Some((top as usize) * self.integral_plane.0 + (left as usize))
     }
 }
 
